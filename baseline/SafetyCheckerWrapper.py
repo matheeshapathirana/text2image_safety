@@ -59,8 +59,7 @@ class SDWrapper(ModelWrapper):
 
     def __call__(self, text_input_list):
         logits = self.model(text_input_list).cpu()
-        final_preds = torch.stack((1-logits, logits), dim=1).numpy()
-        return final_preds
+        return torch.stack((1-logits, logits), dim=1).numpy()
 
 
 

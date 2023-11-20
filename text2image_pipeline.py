@@ -53,7 +53,7 @@ class SDPipeline():
         pooled_outputs = self.model.safety_checker.vision_model(images)[1]
         images_embed = self.model.safety_checker.visual_projection(pooled_outputs)
 
-        if self.mode[0:2] == "t_":
+        if self.mode[:2] == "t_":
             check_object = text_inputs
         elif self.mode == "i_image":
             check_object = images_tensor
@@ -81,11 +81,7 @@ class SDPipeline():
         dist = cos_dist - self.model.safety_checker.concept_embeds_weights + special_adjustment
         logits = 1 / (1 + torch.exp(-dist / 0.1))
         logits = torch.max(logits, dim=1)[0]
-        if logits > 0.5:
-            nsfw = True
-        else:
-            nsfw = False
-        return nsfw
+        return logits > 0.5
 
     def image_clip_check(self, images_embed):
         with tf.device('/cpu:0'):
@@ -96,10 +92,7 @@ class SDPipeline():
             # emb = np.asarray(normalized(image_embedding.detach().cpu()))
             emb = image_embedding
             nsfw_value = self.detector.predict(emb)
-            if nsfw_value > 0.5:
-                nsfw = True
-            else:
-                nsfw = False
+            nsfw = nsfw_value > 0.5
         return nsfw
 
     def image_check(self, image_numpy):
@@ -112,11 +105,11 @@ class SDPipeline():
             # image_numpy = resize(image_numpy, (224,224))
             trans = transforms.Resize(224)
             pred = model.predict(trans(image_numpy).permute((0,3,2,1)).cpu().numpy())
-            maping = {0: "Neutral", 1: "Porn", 2: "Sexy"}
             new_pred = np.argmax(pred[0])
             if new_pred != 0:
                 nsfw = True
-                print("Detect {}".format(maping[new_pred]), "With {} probability".format(pred[0][new_pred]))
+                maping = {0: "Neutral", 1: "Porn", 2: "Sexy"}
+                print(f"Detect {maping[new_pred]}", f"With {pred[0][new_pred]} probability")
             else: nsfw = False
 
         return nsfw
@@ -136,7 +129,7 @@ class SDPipeline():
             "ragno": "spider",
             "scoiattolo": "squirrel",
         }
-        translate = {x: translate[x] for x in translate.keys()}
+        translate = {x: translate[x] for x in translate}
         mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)
         std = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)
         with torch.no_grad():
@@ -151,7 +144,7 @@ class SDPipeline():
             moutput = nn.Softmax(dim=1)(model(image_tensor))[0]
             idx = moutput.argmax().data.item()
             oclass = list(translate.keys())[idx]
-            if translate[oclass] == 'dog' or translate[oclass] == 'cat':
+            if translate[oclass] in ['dog', 'cat']:
                 print('Detected ', translate[oclass], ':', moutput[idx].data.cpu().numpy())
                 nsfw = True
             else:
@@ -174,22 +167,14 @@ class SDPipeline():
         str1_set = set(nsfw_str.strip().split(';'))
         str2_set = set(re.sub(fr'([{string.punctuation}])\B', r' \1', text_inputs[0]).split())
         common_set = str1_set & str2_set
-        if len(common_set) > 0:
-            nsfw = True
-        else:
-            nsfw = False
-        return nsfw
+        return len(common_set) > 0
 
     def text_check(self, text_inputs):
         tokenizer = AutoTokenizer.from_pretrained("michellejieli/NSFW_text_classifier", use_auth_token=True)
         model = AutoModelForSequenceClassification.from_pretrained("michellejieli/NSFW_text_classifier",
                                                                    use_auth_token=True)
         classifier = pipeline("sentiment-analysis", tokenizer=tokenizer, model=model, use_auth_token=True)
-        if classifier(text_inputs)[0]['label'] == 'NSFW':
-            nsfw = True
-        else:
-            nsfw = False
-        return nsfw
+        return classifier(text_inputs)[0]['label'] == 'NSFW'
 
     def cosine_distance(self, image_embeds, text_embeds):
         normalized_image_embeds = nn.functional.normalize(image_embeds)
@@ -198,24 +183,23 @@ class SDPipeline():
 
     def load_clip_NSFW_detector(self, clip_model="ViT-L/14"):
         cache_folder = "./model"
-        if clip_model == "ViT-L/14":
-            model_dir = cache_folder + "/clip_autokeras_binary_nsfw"
-            dim = 768
-        else:
+        if clip_model != "ViT-L/14":
             raise ValueError("Unknown clip model")
+        model_dir = f"{cache_folder}/clip_autokeras_binary_nsfw"
+        dim = 768
         if not os.path.exists(model_dir):
             os.makedirs(cache_folder, exist_ok=True)
 
         from urllib.request import urlretrieve  # pylint: disable=import-outside-toplevel
 
-        path_to_zip_file = cache_folder + "/clip_autokeras_binary_nsfw.zip"
+        path_to_zip_file = f"{cache_folder}/clip_autokeras_binary_nsfw.zip"
         if clip_model == "ViT-L/14":
             url_model = "https://raw.githubusercontent.com/LAION-AI/CLIP-based-NSFW-Detector/main/clip_autokeras_binary_nsfw.zip"
         elif clip_model == "ViT-B/32":
             url_model = (
                 "https://raw.githubusercontent.com/LAION-AI/CLIP-based-NSFW-Detector/main/clip_autokeras_nsfw_b32.zip")
         else:
-            raise ValueError("Unknown model {}".format(clip_model))  # pylint: disable=consider-using-f-string
+            raise ValueError(f"Unknown model {clip_model}")
         urlretrieve(url_model, path_to_zip_file)
 
         import zipfile

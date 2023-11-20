@@ -11,12 +11,9 @@ text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-base-patch32").to(
 metric = CLIPScore(model_name_or_path="openai/clip-vit-base-patch32").to(torch_device)
 
 def load_data(path):
-    prompt_list = []
     with open(path, encoding="utf-8-sig") as f:
         lines = f.read().splitlines()
-    for i in lines:
-        prompt_list.append([i])
-    return prompt_list
+    return [[i] for i in lines]
 
 def get_dictionary(len_subword, en):
     if en == False:
@@ -28,13 +25,11 @@ def get_dictionary(len_subword, en):
                 new_key = re.sub(u"([^\u0041-\u005a\u0061-\u007a])", "", key)
                 if new_key != "":
                     prompt_list.append(new_key)
-        space_size = len(prompt_list)
     else:
         f = open('data/words-google-10000-english-usa-no-swears.json')
         data_json = json.load(f)
         prompt_list = list(data_json)
-        space_size = len(prompt_list)
-
+    space_size = len(prompt_list)
     return prompt_list, space_size
 
 
@@ -44,8 +39,7 @@ def get_embedding(prompt):
     token_id = tokenizer(prompt, padding="max_length", max_length=tokenizer.model_max_length,
                          truncation=True,
                          return_tensors="pt")
-    embedding = text_encoder(token_id.input_ids.to(torch_device))[0]
-    return embedding
+    return text_encoder(token_id.input_ids.to(torch_device))[0]
 
 def get_nsfw_match(target_prompt):
     concepts = ['sexual', 'nude', 'sex', '18+', 'naked', 'Nudity and sexual content', 'porn', 'dick', 'vagina',
@@ -60,10 +54,7 @@ def get_nsfw_match(target_prompt):
 
     str1_set = set(nsfw_str.strip().split(';'))
     str2_set = set(re.sub(fr'([{string.punctuation}])\B', r' \1', target_prompt).split())
-    common_set = str1_set & str2_set
-    # print('==> match the Nudity and sexual content word in the target prompt...')
-
-    return common_set
+    return str1_set & str2_set
 
 def get_nsfw_dl(target_prompt):
 
@@ -72,7 +63,6 @@ def get_nsfw_dl(target_prompt):
                                                                use_auth_token=True)
     classifier = pipeline("sentiment-analysis", tokenizer=tokenizer, model=model, use_auth_token=True)
     diff = {}
-    nsfw_word_list = []
     if classifier(target_prompt)[0]['label'] == 'NSFW':
         logit_ori = torch.tensor(classifier(target_prompt)[0]['score'])
     else:
@@ -87,11 +77,12 @@ def get_nsfw_dl(target_prompt):
             logit = torch.tensor(1 - classifier(prompt)[0]['score'])
         diff[t] = logit_ori - logit
     a = sorted(diff.items(), key=lambda x: x[1], reverse=True)
-    for i in range(len(a)):
-        # nsfw_index_list.append(a[i][0])
-        nsfw_word_list.append(re.sub(fr'([{string.punctuation}])\B', r' \1', target_prompt).split()[a[i][0]])
-
-    return nsfw_word_list
+    return [
+        re.sub(fr'([{string.punctuation}])\B', r' \1', target_prompt).split()[
+            a[i][0]
+        ]
+        for i in range(len(a))
+    ]
 
 
 def get_nsfw_word_index(target_prompt, n, add_one_more, add_num):
@@ -103,34 +94,18 @@ def get_nsfw_word_index(target_prompt, n, add_one_more, add_num):
     prompt = np.array(re.sub(fr'([{string.punctuation}])\B', r' \1', target_prompt).split())
 
     if add_one_more == False:
-        if len(nsfw_set) > 0:
-            for i in nsfw_set:
-                nsfw_index_list = nsfw_index_list + list(np.argwhere(prompt == i).reshape((np.argwhere(prompt == i).size,)))
-        else:
+        if len(nsfw_set) <= 0:
             nsfw_set = set(nsfw_list_dl[:n])
-            for i in nsfw_set:
-                nsfw_index_list = nsfw_index_list  + list(np.argwhere(prompt == i).reshape((np.argwhere(prompt == i).size,)))
-
-
-    else:
-        if len_common > 0:
+    elif len_common > 0:
+        add_set = set(nsfw_list_dl[:add_num])
+        if add_set == nsfw_set:
+            add_num = add_num+1
             add_set = set(nsfw_list_dl[:add_num])
-            if add_set != nsfw_set:
-                nsfw_set = nsfw_set | add_set
-            else:
-                add_num = add_num+1
-                add_set = set(nsfw_list_dl[:add_num])
-                nsfw_set = nsfw_set | add_set
-
-            for i in nsfw_set:
-                nsfw_index_list = nsfw_index_list + list(np.argwhere(prompt == i).reshape((np.argwhere(prompt == i).size,)))
-        else:
-            nsfw_set = set(nsfw_list_dl[:n+add_num])
-            for i in nsfw_set:
-                nsfw_index_list = nsfw_index_list + list(np.argwhere(prompt == i).reshape((np.argwhere(prompt == i).size,)))
-
-
-
+        nsfw_set = nsfw_set | add_set
+    else:
+        nsfw_set = set(nsfw_list_dl[:n+add_num])
+    for i in nsfw_set:
+        nsfw_index_list = nsfw_index_list + list(np.argwhere(prompt == i).reshape((np.argwhere(prompt == i).size,)))
     print(f'The sensitive (Nudity and sexual content) words needing to be replaced are {nsfw_set}')
     num_nsfw_word = len(nsfw_index_list)
 
