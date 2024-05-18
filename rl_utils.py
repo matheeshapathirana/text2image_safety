@@ -73,8 +73,9 @@ class data_agent():
             self.train_loader = None
             self.val_loader = None
 
-            print('Your {} dataset has been prepared, please remember to update the loaders with the batch size'
-                  .format(self.data_name))
+            print(
+                f'Your {self.data_name} dataset has been prepared, please remember to update the loaders with the batch size'
+            )
 
     def update_loaders(self, batch_size):
 
@@ -120,10 +121,11 @@ class data_agent():
         '''
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        file_name = os.path.join(save_dir, 'label_{}_train-set_{}_correct_{}.pt'.format(label, train, correct))
+        file_name = os.path.join(
+            save_dir, f'label_{label}_train-set_{train}_correct_{correct}.pt'
+        )
         if os.path.exists(file_name):
             indices = torch.load(file_name)
-            return indices
         else:
             if train:
                 targets_tensor = torch.Tensor(self.train_dataset.targets)
@@ -157,7 +159,8 @@ class data_agent():
                     for item in wrong_set:
                         indices = indices[indices != item]
             torch.save(indices, file_name)
-            return indices
+
+        return indices
 
     @staticmethod
     def show_image_from_tensor(img, inv=False, save_dir=None, dpi=300, tight=True):

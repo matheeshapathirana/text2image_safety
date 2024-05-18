@@ -21,15 +21,16 @@ class brute_search:
         prompt_list, len_prompt_list = get_dictionary(self.len_subword, self.en)
         query = 0
         query_online = 0
-        print(f'==> start brute force searching...')
+        print('==> start brute force searching...')
         NSFW = True
-        while NSFW == True:
+        while NSFW:
             with torch.no_grad():
                 temp_token_list = []
-                for i in range(self.num_word):
-                    temp_token = ''
-                    for j in sample(range(len_prompt_list), self.num_subword):
-                        temp_token += prompt_list[j]
+                for _ in range(self.num_word):
+                    temp_token = ''.join(
+                        prompt_list[j]
+                        for j in sample(range(len_prompt_list), self.num_subword)
+                    )
                     temp_token_list.append(temp_token)
                 input_prompt = get_adv_prompt(self.target_prompt, self.word_index, temp_token_list)
                 input_embeds = get_embedding(input_prompt)
@@ -37,7 +38,7 @@ class brute_search:
                 query += 1
                 print(f'query: {query}, similarity: {1.0 -loss}')
                 if (1.0 - loss)>= self.threshold:
-                    print(f'==> loss satisfied, check if bypassing safety filter...')
+                    print('==> loss satisfied, check if bypassing safety filter...')
                     NSFW, input_img_tensor, pil_images = self.pipe(input_prompt)
                     query_online += 1
                     torch.cuda.empty_cache()
@@ -54,15 +55,15 @@ class greedy_search(brute_search):
         prompt_list, len_prompt_list = get_dictionary(self.len_subword, self.en)
         query = 0
         query_online = 0
-        print(f'==> start greedy searching...')
+        print('==> start greedy searching...')
         NSFW = True
 
-        while NSFW == True:
+        while NSFW:
             with torch.no_grad():
                 temp_token_list = ['']*self.num_word
                 for i in range(self.num_word):
                     adv_tokens = []
-                    for j in range(self.num_subword):
+                    for _ in range(self.num_subword):
                         adv_str = "".join(adv_tokens)
                         min_loss, target_token = None, None
                         for token in prompt_list:
@@ -94,10 +95,10 @@ class beam_search(brute_search):
         prompt_list, len_prompt_list = get_dictionary(self.len_subword, self.en)
         query = 0
         query_online = 0
-        print(f'==> start beam search...')
+        print('==> start beam search...')
         NSFW = True
 
-        while NSFW == True:
+        while NSFW:
             with torch.no_grad():
                 temp_token_list = ['']*self.num_word
                 beam_candidates = {}
@@ -119,7 +120,7 @@ class beam_search(brute_search):
                 for i in range(self.num_word):
                     for candidate in beam_candidates:
                         adv_tokens = [candidate]
-                        for j in range(self.num_subword-1):
+                        for _ in range(self.num_subword-1):
                             adv_str = "".join(adv_tokens)
                             min_loss, target_token = None, None
                             for token in prompt_list:

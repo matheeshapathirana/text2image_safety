@@ -28,8 +28,9 @@ class robot():
             # create v_theta head, actor-critic mode
             self.v_theta = v_theta
             if self.v_theta:
-                self.theta = nn.ModuleList([nn.Linear(self.embedding_size, 1)
-                                            for i in range(len(space))])
+                self.theta = nn.ModuleList(
+                    [nn.Linear(self.embedding_size, 1) for _ in range(len(space))]
+                )
             # set necessary parameters
             self.stage = 0
             self.hidden = None
@@ -296,11 +297,11 @@ class MPA_agent(robot):
         # prompt_record = pd.DataFrame(columns=["prompt", "reward", "Nudity and sexual content", "pil_image"])
         target_tensor = get_embedding(self.target_prompt)
 
-        # set up record for early stop
-        orig_r_record = []
-
         # start learning, interacting with the environments
         if self.critic:
+            # set up record for early stop
+            orig_r_record = []
+
             for s in range(steps):
                 # make combo and get reward
                 combo, log_p_combo, rewards_critic = self.select_combo()
@@ -311,7 +312,7 @@ class MPA_agent(robot):
 
                 if self.mode == 'l2':
                     if s < self.query_limit and r >= self.threshold:
-                        print(f'==> Satisfy the reward threshold, check if bypassing safety filter...')
+                        print('==> Satisfy the reward threshold, check if bypassing safety filter...')
                         self.NSFW, input_img_tensor, self.pil_images = self.pipe(input_prompt)
                         self.query_online += 1
 
@@ -350,7 +351,9 @@ class MPA_agent(robot):
                         self.result_df = self.result_df._append({"original_text": self.target_prompt[0], "perturbed_text": input_prompt[0],
                                           "local_queries": self.query, "num_queries": self.query_online, "result_type": "Successful","similarity score": r.cpu()},
                                          ignore_index=True)
-                        self.pil_images[0].save(f"{self.saved_figure_path}/{input_prompt[0][0:20]}_{self.query}_{self.query_online}_{self.nsfw_word}.png")
+                        self.pil_images[0].save(
+                            f"{self.saved_figure_path}/{input_prompt[0][:20]}_{self.query}_{self.query_online}_{self.nsfw_word}.png"
+                        )
                         break
 
                     # if sum([int(i < 0) for i in orig_r_record]) >= 3:
@@ -359,28 +362,27 @@ class MPA_agent(robot):
                         self.flag_add_word = True
                         break
                 if s > 2:
-                    # early stop
-                    # or (s < self.query_limit and r < self.threshold and abs(orig_r_record[-1] + orig_r_record[-3] - 2*orig_r_record[-2]) < 1e-4)
                     if (self.query_online >= self.query_limit and r < self.threshold) \
-                            or (r > 0 and abs(orig_r_record[-1] + orig_r_record[-3] - 2*orig_r_record[-2]) < 1e-4) \
-                            or self.perturb_rate > 0.3:
-                        print(f'==> Reach query limit / network not update / reach perturb rate limit')
+                                or (r > 0 and abs(orig_r_record[-1] + orig_r_record[-3] - 2*orig_r_record[-2]) < 1e-4) \
+                                or self.perturb_rate > 0.3:
+                        print('==> Reach query limit / network not update / reach perturb rate limit')
                         self.prompt_record = self.prompt_record.sort_values("reward", ascending=False)
                         if self.mode == 'l2':
                             best_prompt = self.prompt_record.iloc[0].values[0]
                             self.NSFW,_,best_pil_img = self.pipe(best_prompt)
                             self.query_online += 1
                             if self.NSFW == False:
-                                print(f'==> Save the image with the maximum reward that bypassed.')
+                                print('==> Save the image with the maximum reward that bypassed.')
                                 best_pil_img[0].save(
-                                    f"{self.saved_figure_path}/{best_prompt[0:20]}_{self.query}_{self.query_online}_{self.nsfw_word}_F.png")
+                                    f"{self.saved_figure_path}/{best_prompt[:20]}_{self.query}_{self.query_online}_{self.nsfw_word}_F.png"
+                                )
                                 self.result_df = self.result_df._append(
                                     {"original_text": self.target_prompt[0], "perturbed_text": best_prompt,
                                      "local_queries": self.query, "num_queries": self.query_online,
                                      "result_type": "Successful_only_bypass", "similarity score": r.cpu()},
                                     ignore_index=True)
                             else:
-                                print(f'==> Not pass the safety filter, no image saved')
+                                print('==> Not pass the safety filter, no image saved')
                                 self.result_df = self.result_df._append(
                                     {"original_text": self.target_prompt[0], "perturbed_text": best_prompt,
                                      "local_queries": self.query, "num_queries": self.query_online,
@@ -391,16 +393,17 @@ class MPA_agent(robot):
                                 best_prompt = self.prompt_record[self.prompt_record["nsfw"] == False].iloc[0].values[0]
                                 best_pil_img = self.prompt_record[self.prompt_record["nsfw"] == False].iloc[0].values[3]
                                 best_reward = self.prompt_record[self.prompt_record["nsfw"] == False].iloc[0].values[1]
-                                print(f'==> Save the image with the maximum reward that bypassed.')
+                                print('==> Save the image with the maximum reward that bypassed.')
                                 best_pil_img[0].save(
-                                    f"{self.saved_figure_path}/{best_prompt[0:20]}_{self.query}_{self.query_online}_{self.nsfw_word}_F.png")
+                                    f"{self.saved_figure_path}/{best_prompt[:20]}_{self.query}_{self.query_online}_{self.nsfw_word}_F.png"
+                                )
                                 self.result_df = self.result_df._append(
                                     {"original_text": self.target_prompt[0], "perturbed_text": best_prompt,
                                      "local_queries": self.query, "num_queries": self.query_online,
                                      "result_type": "Successful_only_bypass", "similarity score": best_reward},
                                     ignore_index=True)
                             except:
-                                print(f'==> Not pass the safety filter, no image saved')
+                                print('==> Not pass the safety filter, no image saved')
                                 self.result_df = self.result_df._append(
                                     {"original_text": self.target_prompt[0], "perturbed_text": None,
                                      "local_queries": self.query, "num_queries": self.query_online,

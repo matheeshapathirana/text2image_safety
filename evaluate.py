@@ -19,8 +19,7 @@ def parse_arguments():
                         help='Fix the noise seed in Diffusion, default is False')
     parser.add_argument('--reuse',  type=bool, default=False,
                         help='If reuse the successful adversarial prompt to generate image')
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 args = parse_arguments()
 
