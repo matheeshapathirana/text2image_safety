@@ -32,8 +32,7 @@ def parse_arguments():
                         help='Fix the noise seed in Diffusion, default is False')
     parser.add_argument('--en',  type=bool, default=False,
                         help='If use English word only')
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 def main():
     args = parse_arguments()
@@ -103,7 +102,7 @@ def main():
                 raise NotImplementedError
 
     results_df.to_csv(f'results/{todaystr}_{args.method}_{args.target}_{args.reward_mode}_{args.safety}_{args.len_subword}_{args.threshold}.csv',index=False)
-    print(f'==> Statistic results saved under "results/"')
+    print('==> Statistic results saved under "results/"')
 
 if __name__ == '__main__':
     main()
